@@ -45,3 +45,47 @@ class RPSGameServer:
             })
             
         return True
+    
+    async def unregister(self, ws):
+            if ws in self.players:
+                player_num = self.players.index(ws) + 1
+                self.players.remove(ws)
+                print(f"Player {player_num} disconnected")
+                
+                if self.game_started:
+                    await self.broadcast({
+                        'type': 'opponent_left',
+                        'message': f'Player {player_num} left the game'
+                    })
+                    
+                self.reset_game()
+                
+    def reset_game(self):
+        self.players = []
+        self.choices = {}
+        self.scores = [0, 0]
+        self.game_started = False
+        
+    async def start_round(self):
+        self.choices = {}
+        await self.broadcast({
+            'type': 'round_start',
+            'message': 'Make your choice!',
+            'scores': self.scores
+        })
+        
+    async def handle_choice(self, ws, choice):
+        if ws not in self.players:
+            return
+            
+        player_idx = self.players.index(ws)
+        self.choices[player_idx] = choice
+        
+        await ws.send_json({
+            'type': 'choice_made',
+            'choice': choice,
+            'message': f'You chose {choice}'
+        })
+        
+        if len(self.choices) == 2:
+            await self.determine_winner()
